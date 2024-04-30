@@ -65,6 +65,5 @@ int main() {
     for (int i = 0; i<N; i++){
         cout<<T[i][1]<<endl;
     }
-    cout<<"aa";
     return 0;
 }
