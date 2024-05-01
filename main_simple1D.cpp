@@ -52,7 +52,7 @@ const double T0_analitica = (alpha_ext*T_ext+lambda*T_w/e)/(alpha_ext+lambda/e);
 
 void posicions_nodes();
 void mapa_inicial();
-void defineix_coefs_disc();
+void calcula_coefs_disc();
 bool comprova_convergencia();
 void actualitza_T_est();
 void gauss_seidel();
@@ -65,7 +65,7 @@ void gauss_seidel();
 int main() {
     posicions_nodes();
     mapa_inicial();
-    defineix_coefs_disc();
+    calcula_coefs_disc();
     gauss_seidel();
     cout<< setprecision(12);
     cout<<"Resultat analític de la temperatura del primer node: "<<endl;
@@ -125,7 +125,7 @@ void gauss_seidel() {
     double conv = false;
     while (!conv) {
         for (int i = 0; i < Nnodes; i++) {
-            T[i] = (a.aw[i]*T[i-1] + a.ae[i]*T_est[i+1] + a.bp[i])/a.ap[i];
+            T[i] = (a.aw[i]*T[i-1] + a.ae[i]*T_est[i+1] + a.bp[i])/a.ap[i]; //a.aw[i]*T[i-1] o a.aw[i]*T_est[i-1] ?? (funciona igual però)
             //cout << "temperatura " << i << ": " << T[i] <<endl;
         };
         conv = comprova_convergencia();
@@ -134,7 +134,7 @@ void gauss_seidel() {
     };
 };
 
-void defineix_coefs_disc() {
+void calcula_coefs_disc() {
     a.aw[0] = 0;
     a.ae[0] = lambda*S/dpe[0];
     a.ap[0] = a.ae[0] + alpha_ext*S;
