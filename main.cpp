@@ -27,11 +27,11 @@ const double w2 = 2*M_PI/(365*24*3600); // freqüència 2 d'oscil·lació de la 
 const int N = 10; // Nombre de volums de control de la discretització
 const int Nnodes = N+2; // Nombre de nodes
 const int Ncares = N+1; // Nombre de cares 
-const double dt = 3600; // [s] increment de temps de discretització temporal
-const int t_fi = 100*24*3600; // [s] temps final
+const double dt = 1; // [s] increment de temps de discretització temporal
+const int t_fi = 100;//100*24*3600; // [s] temps final
 const int freq = 1; // Factor per reduir el nombre d'instants de temps en què guardem el mapa de temperatures. Corresponent a: cada quants instantst guardem? Si freq=1 guardem tot; si 2, la meitat...
 const double Beta = 0.5; // Model --> 0: explícit, 0.5: Crank-Nicolson, 1: implícit
-const double fr = 1; // Factor de relaxació;
+const double fr = 100; // Factor de relaxació;
 const double delta = 1e-9; // Criteri de convergència
 
 
@@ -113,6 +113,7 @@ void posicions_nodes() {
 void mapa_inicial() {
     for (int i = 0; i < Nnodes; i++) {
         T[i][0] = T_0; // Dada enunciat
+        T_hist[i][0] = T_0;
     };
 };
 
@@ -146,10 +147,10 @@ void guarda_T(int j) {
 void gauss_seidel() {
     double conv = false;
     while (!conv) {
-        // defineix_coefs_disc(); // Si variessin amb la temperatura caldria descomentar i adaptar-ho
+        //calcula_coefs_disc(); // Si variessin amb la temperatura caldria descomentar i adaptar-ho
         for (int i = 0; i < Nnodes; i++) {
             T[i][1] = (aw[i]*T_est[i-1][1] + ae[i]*T_est[i+1][1] + bp[i])/ap[i];
-            //cout << "temperatura " << i << ": " << T[i] <<endl;
+            //cout << "temperatura " << i << ": " << T[i][1] <<endl;
         };
         conv = comprova_convergencia();
         if (!conv) actualitza_T_est(1,1);
@@ -163,7 +164,7 @@ void nou_temps() {
         calcula_T_ext(i);
         calcula_coefs_disc();
         gauss_seidel();
-        if (i%freq==0) guarda_T(i/freq); // Per guardar les dades cada 'freq' vegades increments de temps
+        if (i%freq==0) guarda_T(1+i/freq); // Per guardar les dades cada 'freq' vegades increments de temps
         actualitza_T();
         cout<<i/(t_fi/dt)*100<<"%"<<endl;
     };
@@ -172,8 +173,8 @@ void nou_temps() {
 void calcula_coefs_disc() {
     aw[0] = 0;
     ae[0] = Beta*lambda*S/dpe[0];
-    ap[0] = ae[0] + alpha_ext*S - Beta*alpha_ext*S;
-    bp[0] = (1-Beta)*(alpha_ext*(T[0][0]-T_ext[0])*S + lambda*(T[1][0]-T[0][0])*S/dpe[0]) - Beta*alpha_ext*T_ext[1]*S;
+    ap[0] = ae[0] + Beta*alpha_ext*S;
+    bp[0] = Beta*alpha_ext*T_ext[1]*S + (1-Beta)*(alpha_ext*(T_ext[0]-T[0][0])*S + lambda*(T[1][0]-T[0][0])*S/dpe[0]);
 
     for (int i = 1; i < N+1; i++) {
         aw[i] = Beta*lambda*S/dpw[i];
@@ -189,6 +190,10 @@ void calcula_coefs_disc() {
 };
 
 void calcula_T_ext(int i) {
-    T_ext[0] = A_0 + A_1*sin(w1*i*dt) + A_2*sin(w2*i*dt);
-    T_ext[1] = A_0 + A_1*sin(w1*(i+1)*dt) + A_2*sin(w2*(i+1)*dt); 
+    //T_ext[0] = A_0 + A_1*sin(w1*i*dt) + A_2*sin(w2*i*dt);
+    //T_ext[1] = A_0 + A_1*sin(w1*(i+1)*dt) + A_2*sin(w2*(i+1)*dt); 
+    T_ext[0]=750;
+    T_ext[1]=750;
 };
+
+// REVISAR COEFS DISC. Algo falla, mirar el valor de T node 0 a cada iteració, és estrany.
