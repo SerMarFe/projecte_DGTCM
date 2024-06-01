@@ -24,14 +24,14 @@ const double w1 = 2*M_PI/(24*3600); // freqüència 1 d'oscil·lació de la temp
 const double w2 = 2*M_PI/(365*24*3600); // freqüència 2 d'oscil·lació de la temperatura
 
 // Numèriques
-const int N = 5; // Nombre de volums de control de la discretització
+const int N = 10; // Nombre de volums de control de la discretització
 const int Nnodes = N+2; // Nombre de nodes
 const int Ncares = N+1; // Nombre de cares 
 const double dt = 1; // [s] increment de temps de discretització temporal
-const int t_fi = 1000;//100*24*3600l; // [s] temps final
-const int freq = 1; // Factor per reduir el nombre d'instants de temps en què guardem el mapa de temperatures. Corresponent a: cada quants instantst guardem? Si freq=1 guardem tot; si 2, la meitat...
+const int t_fi = 100;//100*24*3600l; // [s] temps final
+const int freq = 100; // Factor per reduir el nombre d'instants de temps en què guardem el mapa de temperatures. Corresponent a: cada quants instantst guardem? Si freq=1 guardem tot; si 2, la meitat...
 const double Beta = 0.5; // Model --> 0: explícit, 0.5: Crank-Nicolson, 1: implícit
-const double fr = 100; // Factor de relaxació;
+const double fr = 1; // Factor de relaxació;
 const double delta = 1e-12; // Criteri de convergència
 
 
