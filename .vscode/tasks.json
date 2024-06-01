@@ -6,8 +6,6 @@
 			"label": "C/C++: g++ build active file",
 			"command": "/usr/bin/g++",
 			"args": [
-				"-Wall",
-				"-Werror",
 				"-fdiagnostics-color=always",
 				"-g",
 				"${file}",
