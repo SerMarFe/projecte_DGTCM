@@ -199,3 +199,4 @@ void calcula_T_ext(int i) {
 };
 
 // REVISAR COEFS DISC. Algo falla, mirar el valor de T node 0 a cada iteració, és estrany.
+// El problema està a la T[0], la qual va oscil·lant, segurament per una actualització erronia, cal revisar. Posar breakpoint a bp[0] i watch: T i T_est
