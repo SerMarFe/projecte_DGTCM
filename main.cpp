@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cmath>
 #include <iomanip>
+#include <fstream>
 using namespace std;
 
 //----------------------
@@ -24,22 +25,21 @@ const double w1 = 2*M_PI/(24*3600); // freqüència 1 d'oscil·lació de la temp
 const double w2 = 2*M_PI/(365*24*3600); // freqüència 2 d'oscil·lació de la temperatura
 
 // Numèriques
-const int N = 10; // Nombre de volums de control de la discretització
+const int N = 50; // Nombre de volums de control de la discretització
 const int Nnodes = N+2; // Nombre de nodes
 const int Ncares = N+1; // Nombre de cares 
-const double dt = 1; // [s] increment de temps de discretització temporal
-const int t_fi = 100;//100*24*3600; // [s] temps final
+const double dt = 10; // [s] increment de temps de discretització temporal
+const int t_fi = 100*24*3600; // [s] temps final
 const int freq = 1; // Factor per reduir el nombre d'instants de temps en què guardem el mapa de temperatures. Corresponent a: cada quants instantst guardem? Si freq=1 guardem tot; si 2, la meitat...
 const double Beta = 0.5; // Model --> 0: explícit, 0.5: Crank-Nicolson, 1: implícit
-const double fr = 100; // Factor de relaxació;
-const double delta = 1e-9; // Criteri de convergència
-
+const double fr = 1; // Factor de relaxació;
+const double delta = 1e-12; // Criteri de convergència
 
 //----------------------
 // Definició de vectors
 //----------------------
 
-// Si tenim N volums de control tindrem N+1 nodes donada la geometria del problema
+// Si tenim N volums de control tindrem N+2 nodes donada la geometria del problema
 double dx = e/N; // [m] Distància entre nodes
 double xcv[Ncares] = {}; // [m] Posició de les cares dels volums de control
 double xe[Ncares] = {}; // [m] Posició de les cares east
@@ -54,8 +54,14 @@ double aw[Nnodes] = {}; // Coeficients de discretització cara west
 double bp[Nnodes] = {}; // Coeficients de discretització
 double T[Nnodes][2] = {}; // [ºC] Mapa de temperatures en instants contigus (n, n+1)
 double T_est[Nnodes][2] = {}; // [ºC] mapa de temperatures estimat
-double T_hist[Nnodes][int((t_fi/dt)/freq)] = {}; // [ºC] Mapa de temperatures a guardar
+double T_hist[Nnodes][1+int((t_fi/dt)/freq)] = {}; // [ºC] Mapa de temperatures a guardar
 
+// Variables de comprovació i calculs
+double Qin[int(t_fi/dt)/freq] = {};
+double Qout[int(t_fi/dt)/freq] = {};
+double Qacc[int(t_fi/dt)/freq] = {};
+double Qtotal[int(t_fi/dt)/freq] = {};
+double T_analitica[Nnodes] = {}; // Valor analític de la temperatura en règim permanent si temperatura externa constant
 //------------------------------------------
 // Definicó dels prototipus de les funcions
 //------------------------------------------
@@ -70,6 +76,9 @@ void gauss_seidel();
 void nou_temps();
 void calcula_T_ext(int i);
 
+void balanc_global(int i);
+void solucio_analitica();
+void exporta_resultats();
 
 //----------------------
 // Main
@@ -84,6 +93,8 @@ int main() {
     for (int i = 0; i<Nnodes; i++){
         cout<<"Node "<<i<<" (x = "<<xp[i]<<"m): "<<T[i][1]<<"ºC"<<endl;
     };
+    solucio_analitica();
+    exporta_resultats();
     return 0;
 }
 
@@ -107,7 +118,9 @@ void posicions_nodes() {
         dpe[i] = xp[i+1]-xp[i];
         dpw[i] = xp[i]-xp[i-1];
     };
+    dpw[0] = 0; // no es fa servir (ja que w del primer node de la paret no existeix)
     dpw[N+1] = xp[N+1] - xp[N];
+    // la posició dpe[N+1] no es fa servir, per això també val 0
 };
 
 void mapa_inicial() {
@@ -150,6 +163,7 @@ void gauss_seidel() {
         //calcula_coefs_disc(); // Si variessin amb la temperatura caldria descomentar i adaptar-ho
         for (int i = 0; i < Nnodes; i++) {
             T[i][1] = (aw[i]*T_est[i-1][1] + ae[i]*T_est[i+1][1] + bp[i])/ap[i];
+            T[i][1] = T[i][0] + fr*(T[i][1]-T[i][0]);
             //cout << "temperatura " << i << ": " << T[i][1] <<endl;
         };
         conv = comprova_convergencia();
@@ -165,6 +179,7 @@ void nou_temps() {
         calcula_coefs_disc();
         gauss_seidel();
         if (i%freq==0) guarda_T(1+i/freq); // Per guardar les dades cada 'freq' vegades increments de temps
+        balanc_global(i);
         actualitza_T();
         cout<<i/(t_fi/dt)*100<<"%"<<endl;
     };
@@ -172,9 +187,9 @@ void nou_temps() {
 
 void calcula_coefs_disc() {
     aw[0] = 0;
-    ae[0] = Beta*lambda*S/dpe[0];
-    ap[0] = ae[0] + Beta*alpha_ext*S;
-    bp[0] = Beta*alpha_ext*T_ext[1]*S + (1-Beta)*(alpha_ext*(T_ext[0]-T[0][0])*S + lambda*(T[1][0]-T[0][0])*S/dpe[0]);
+    ae[0] = lambda*S/dpe[0];
+    ap[0] = ae[0] + alpha_ext*S;
+    bp[0] = alpha_ext*T_ext[1]*S;
 
     for (int i = 1; i < N+1; i++) {
         aw[i] = Beta*lambda*S/dpw[i];
@@ -190,10 +205,82 @@ void calcula_coefs_disc() {
 };
 
 void calcula_T_ext(int i) {
-    //T_ext[0] = A_0 + A_1*sin(w1*i*dt) + A_2*sin(w2*i*dt);
-    //T_ext[1] = A_0 + A_1*sin(w1*(i+1)*dt) + A_2*sin(w2*(i+1)*dt); 
-    T_ext[0]=750;
-    T_ext[1]=750;
+    T_ext[0] = A_0 + A_1*sin(w1*i*dt) + A_2*sin(w2*i*dt);
+    T_ext[1] = A_0 + A_1*sin(w1*(i+1)*dt) + A_2*sin(w2*(i+1)*dt); 
+    //T_ext[0] = 700;
+    //T_ext[1] = 700;
 };
 
-// REVISAR COEFS DISC. Algo falla, mirar el valor de T node 0 a cada iteració, és estrany.
+void balanc_global(int i) {
+    // Qin = Potència de calor de convecció entrant per la paret de l'esquerra
+    // Qout = Potència de calor de conducció de l'últim volum de control a l'últim node, corresponent a la superfície de la dreta
+    // Qacc = Potència de calor acumulada pels volums de control
+    // Com que es fa el balanç d'energia per unitat de temps, és a dir, per a cada step de temps, es fa el balanç de potència, cal usar l'esquema d'integració emprat mitjançant Beta.
+    Qin[i] = Beta*alpha_ext*(T_ext[0] - T[0][0])*S + (1-Beta)*alpha_ext*(T_ext[1] - T[0][1])*S;
+    Qout[i] = -Beta*lambda*(T[N+1][0]-T[N][0])*S/(dpe[N]) + -lambda*(1-Beta)*(T[N+1][1]-T[N][1])*S/(dpe[N]);
+    Qacc[i] = 0;
+    for (int j=1; j < N+1; j++) {
+        Qacc[i] = Qacc[i] + rho*V*cp*(T[j][1]-T[j][0])/dt;
+    };
+    Qtotal[i] = Qin[i] - Qout[i] - Qacc[i]; // Ha de valer 0
+};
+
+void solucio_analitica() {
+    for (int i=0; i < Nnodes; i++)
+    T_analitica[i] = (e*T_ext[1] + lambda*T_w/alpha_ext + (T_w-T_ext[1])*xp[i]) / (e+lambda/alpha_ext);
+};
+
+void exporta_resultats() {
+    ofstream resultats("resultats/resultats_temperatura.csv");
+    if (!resultats.is_open()) {
+        cerr << "No s'ha pogut obrir el fitxer per escriure-hi" << endl;
+    };
+    // Capçal
+    resultats << "Temps final: " << t_fi << "\n";
+    // Escriu la temperatura
+    for (int i = 0; i < Nnodes; i++) {
+        //resultats << i; // Index del node
+        resultats << xp[i];
+        for (int j = 0; j < int((t_fi/dt)/freq); j++) {
+            resultats <<  "," << T_hist[i][j];
+        };
+        resultats << "\n";
+    };
+
+    ofstream resultats_analitics("resultats/resultats_analitics_temperatura.csv");
+    if (!resultats_analitics.is_open()) {
+        cerr << "No s'ha pogut obrir el fitxer per escriure-hi" << endl;
+    };
+    //Capçal
+    resultats_analitics << "Temps final: " << t_fi << "\n";
+    for (int i = 0; i < Nnodes; i++) {
+        resultats_analitics << T_analitica[i] << ",";
+    };
+
+    ofstream balanc_calor("resultats/balanc_calor.csv");
+    if (!balanc_calor.is_open()) {
+        cerr << "No s'ha pogut obrir el fitxer per escriure-hi" << endl;
+    };
+    //Capçal
+    balanc_calor << "Temps final: " << t_fi << "\n";
+    balanc_calor << "t, Qin, Qout, Qacc, Qtotal" << "\n";
+    for (int i = 0; i < int((t_fi/dt)/freq); i++) {
+        balanc_calor << i*dt*freq << ",";
+    };
+    balanc_calor << "\n";    
+    for (int i = 0; i < int((t_fi/dt)/freq); i++) {
+        balanc_calor << Qin[i] << ",";
+    };
+    balanc_calor << "\n";
+    for (int i = 0; i < int((t_fi/dt)/freq); i++) {
+        balanc_calor << Qout[i] << ",";
+    };
+    balanc_calor << "\n";
+    for (int i = 0; i < int((t_fi/dt)/freq); i++) {
+        balanc_calor << Qacc[i] << ",";
+    };
+    balanc_calor << "\n";
+    for (int i = 0; i < int((t_fi/dt)/freq); i++) {
+        balanc_calor << Qtotal[i] << ",";
+    };
+};
