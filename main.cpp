@@ -11,7 +11,7 @@ using namespace std;
 // Físiques
 const double e = 1; // [m] Gruix de la paret
 const double S = 1; // [m^2] Secció de la paret
-const double rho = 2400; // [kg/m^3] Densitat del fluid
+const double rho = 2400; // [kg/m^3] Densitat de la paret
 const double cp = 900; // [J/(kg*K)] Capacitat calorífica a pressió constant
 const double lambda = 220; // [W/(m*K)] Conductivitat tèrmica de la paret (coeficient de transferència de calor per conducció)
 const double alpha_ext = 8.7; // [W/(m^2*K)] Coeficient de transferència de calor per convecció exterior
@@ -25,7 +25,7 @@ const double w1 = 2*M_PI/(24*3600); // freqüència 1 d'oscil·lació de la temp
 const double w2 = 2*M_PI/(365*24*3600); // freqüència 2 d'oscil·lació de la temperatura
 
 // Numèriques
-const int N = 50; // Nombre de volums de control de la discretització
+const int N = 51; // Nombre de volums de control de la discretització
 const int Nnodes = N+2; // Nombre de nodes
 const int Ncares = N+1; // Nombre de cares 
 const double dt = 10; // [s] increment de temps de discretització temporal
@@ -178,8 +178,8 @@ void nou_temps() {
         calcula_T_ext(i);
         calcula_coefs_disc();
         gauss_seidel();
-        if (i%freq==0) guarda_T(1+i/freq); // Per guardar les dades cada 'freq' vegades increments de temps
-        balanc_global(i);
+        if (i%freq==0) guarda_T(int(1+i/freq)); // Per guardar les dades cada 'freq' vegades increments de temps
+        //balanc_global(i);
         actualitza_T();
         cout<<i/(t_fi/dt)*100<<"%"<<endl;
     };
@@ -212,12 +212,12 @@ void calcula_T_ext(int i) {
 };
 
 void balanc_global(int i) {
-    // Qin = Potència de calor de convecció entrant per la paret de l'esquerra
+    // Qin = Potència de calor entrant per conducció a través de la paret de l'esquerra
     // Qout = Potència de calor de conducció de l'últim volum de control a l'últim node, corresponent a la superfície de la dreta
     // Qacc = Potència de calor acumulada pels volums de control
     // Com que es fa el balanç d'energia per unitat de temps, és a dir, per a cada step de temps, es fa el balanç de potència, cal usar l'esquema d'integració emprat mitjançant Beta.
-    Qin[i] = Beta*alpha_ext*(T_ext[0] - T[0][0])*S + (1-Beta)*alpha_ext*(T_ext[1] - T[0][1])*S;
-    Qout[i] = -Beta*lambda*(T[N+1][0]-T[N][0])*S/(dpe[N]) + -lambda*(1-Beta)*(T[N+1][1]-T[N][1])*S/(dpe[N]);
+    Qin[i] = -Beta*lambda*(T[1][0]-T[0][0])*S/dpe[0] + -(1-Beta)*lambda*(T[1][1]-T[0][1])*S/dpe[0];
+    Qout[i] = -Beta*lambda*(T[N+1][0]-T[N][0])*S/dpe[N] + -(1-Beta)*lambda*(T[N+1][1]-T[N][1])*S/dpe[N];
     Qacc[i] = 0;
     for (int j=1; j < N+1; j++) {
         Qacc[i] = Qacc[i] + rho*V*cp*(T[j][1]-T[j][0])/dt;
@@ -232,6 +232,7 @@ void solucio_analitica() {
 
 void exporta_resultats() {
     ofstream resultats("resultats/resultats_temperatura.csv");
+    resultats << setprecision(8);
     if (!resultats.is_open()) {
         cerr << "No s'ha pogut obrir el fitxer per escriure-hi" << endl;
     };
